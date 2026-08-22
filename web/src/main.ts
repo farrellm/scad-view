@@ -14,8 +14,15 @@ const modelName = $('model-name');
 const qualityBadge = $('quality-badge');
 const statsEl = $('stats');
 const fullRenderBtn = $<HTMLButtonElement>('full-render');
+const fitBtn = $<HTMLButtonElement>('fit-view');
 const watchDot = $('watch-dot');
 const logToggle = $<HTMLButtonElement>('log-toggle');
+const navToggle = $<HTMLButtonElement>('nav-toggle');
+const navClose = $<HTMLButtonElement>('nav-close');
+const scrim = $('scrim');
+
+/** Matches a phone in either orientation; must track the CSS query in style.css. */
+const MOBILE = matchMedia('(max-width: 720px), (max-height: 480px)');
 
 const viewer = new Viewer(canvas);
 const renderer = new Renderer();
@@ -107,6 +114,7 @@ async function runRender(quality: Quality, frame: boolean) {
 
 function setBusy(busy: boolean, quality: Quality) {
   fullRenderBtn.disabled = busy || !state.bundle;
+  fitBtn.disabled = !state.bundle;
   qualityBadge.hidden = !state.bundle;
   if (busy) {
     qualityBadge.textContent = quality === 'preview' ? 'rendering…' : 'full render…';
@@ -141,10 +149,20 @@ function showOverlay(text: string | null) {
 
 const hashPath = () => (location.hash ? decodeURIComponent(location.hash.slice(1)) : '');
 
+function setModelName(path: string) {
+  const cut = path.lastIndexOf('/');
+  // Split so the mobile toolbar can hide the directory and still show the
+  // filename; end-ellipsis on the whole path would hide the part that matters.
+  modelName.querySelector('.dir')!.textContent = cut < 0 ? '' : path.slice(0, cut + 1);
+  modelName.querySelector('.base')!.textContent = cut < 0 ? path : path.slice(cut + 1);
+  modelName.title = path;
+}
+
 async function openModel(path: string) {
   state.path = path;
   tree.select(path);
-  modelName.textContent = path;
+  setModelName(path);
+  closeNav();
   if (hashPath() !== path) location.hash = encodeURIComponent(path);
 
   try {
@@ -176,10 +194,46 @@ async function reloadAndRender() {
 
 fullRenderBtn.onclick = () => void runRender('full', false);
 
-logToggle.onclick = () => {
-  const collapsed = document.body.classList.toggle('log-collapsed');
+// Touch has no keyboard and no scroll wheel, so it is easy to orbit the model
+// off-screen with no way back.
+fitBtn.onclick = () => viewer.frameAll();
+
+// --- navigation drawer (mobile layout only) ---------------------------------
+
+function setNav(open: boolean) {
+  document.body.classList.toggle('nav-open', open);
+  navToggle.setAttribute('aria-expanded', String(open));
+  (open ? navClose : navToggle).focus();
+}
+
+function closeNav() {
+  if (document.body.classList.contains('nav-open')) setNav(false);
+}
+
+navToggle.onclick = () => setNav(!document.body.classList.contains('nav-open'));
+navClose.onclick = () => setNav(false);
+scrim.onclick = () => setNav(false);
+window.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeNav(); });
+
+/** Once the user takes a side, stop imposing the per-breakpoint default. */
+let logToggledByUser = false;
+
+function setLogCollapsed(collapsed: boolean) {
+  document.body.classList.toggle('log-collapsed', collapsed);
   logToggle.textContent = collapsed ? 'show' : 'hide';
+}
+
+logToggle.onclick = () => {
+  logToggledByUser = true;
+  setLogCollapsed(!document.body.classList.contains('log-collapsed'));
 };
+
+// A 190px log on a phone screen leaves the model almost nowhere to live, so it
+// starts collapsed there. Driven off the media query rather than a one-shot
+// check at boot: the viewport can still be settling when this module runs.
+const applyLogDefault = () => { if (!logToggledByUser) setLogCollapsed(MOBILE.matches); };
+MOBILE.addEventListener('change', applyLogDefault);
+applyLogDefault();
 
 let debounce: number | undefined;
 subscribeToChanges(
@@ -226,7 +280,7 @@ async function boot() {
 
   const initial = hashPath();
   if (initial) await openModel(initial);
-  else showOverlay('Select a model from the sidebar');
+  else showOverlay(MOBILE.matches ? 'Tap ☰ to choose a model' : 'Select a model from the sidebar');
 }
 
 // Debug handle: lets you poke at the current model from the console, and makes

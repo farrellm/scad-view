@@ -2,7 +2,7 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <title>scad-view</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='15'>&#129513;</text></svg>" />
   </head>
@@ -12,17 +12,22 @@
         <header class="pane-head">
           <span class="title">Models</span>
           <span id="root-name" class="muted"></span>
+          <span class="spacer"></span>
+          <button id="nav-close" type="button" class="icon-btn" aria-label="Close model list">&#10005;</button>
         </header>
         <nav id="tree" class="tree"></nav>
       </aside>
+      <div id="scrim" class="scrim"></div>
       <main id="main">
         <header id="toolbar">
-          <span id="model-name" class="model-name">No model selected</span>
+          <button id="nav-toggle" type="button" class="icon-btn" aria-label="Show model list" aria-expanded="false">&#9776;</button>
+          <span id="model-name" class="model-name"><span class="dir"></span><span class="base">No model selected</span></span>
           <span id="quality-badge" class="badge" hidden></span>
           <span id="stats" class="muted"></span>
           <span class="spacer"></span>
           <span id="watch-dot" class="watch-dot" title="watching for changes"></span>
-          <button id="full-render" type="button" disabled>Full render</button>
+          <button id="fit-view" type="button" class="icon-btn" aria-label="Fit view" title="Fit view" disabled>&#9974;</button>
+          <button id="full-render" type="button" disabled>Full<span class="wide-only"> render</span></button>
         </header>
         <div id="viewport">
           <canvas id="canvas"></canvas>

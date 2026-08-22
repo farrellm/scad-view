@@ -15,6 +15,8 @@ export class Viewer {
   #mesh: Mesh | null = null;
   #grid: GridHelper;
   #axes: AxesHelper;
+  /** Set when something other than the camera changed the picture. */
+  #dirty = true;
 
   constructor(canvas: HTMLCanvasElement) {
     // preserveDrawingBuffer keeps the canvas readable after compositing, so the
@@ -52,10 +54,16 @@ export class Viewer {
     observer.observe(canvas.parentElement ?? canvas);
     this.#resize();
 
+    // Render on demand rather than every frame. An unconditional loop keeps the
+    // GPU busy forever on a static model, which on a phone means heat and a
+    // flat battery. OrbitControls.update() reports whether it moved the camera,
+    // and keeps reporting true until damping settles, so motion stays smooth.
     const loop = () => {
       requestAnimationFrame(loop);
-      this.#controls.update();
-      this.#renderer.render(this.#scene, this.#camera);
+      if (this.#controls.update() || this.#dirty) {
+        this.#renderer.render(this.#scene, this.#camera);
+        this.#dirty = false;
+      }
     };
     loop();
   }
@@ -68,6 +76,7 @@ export class Viewer {
     this.#renderer.setSize(w, h, false);
     this.#camera.aspect = w / h;
     this.#camera.updateProjectionMatrix();
+    this.#dirty = true;
   }
 
   /**
@@ -87,6 +96,7 @@ export class Viewer {
     this.#mesh = new Mesh(geometry, material);
     this.#modelGroup.add(this.#mesh);
     this.#fitHelpers(geometry);
+    this.#dirty = true;
     if (frame) this.frameAll(geometry);
   }
 
@@ -110,6 +120,7 @@ export class Viewer {
     this.#axes.dispose();
     this.#axes = new AxesHelper(Math.max(extent * 0.6, 1));
     this.#scene.add(this.#axes);
+    this.#dirty = true;
   }
 
   frameAll(geometry?: BufferGeometry) {
@@ -118,7 +129,12 @@ export class Viewer {
     const sphere = g.boundingSphere ?? (g.computeBoundingSphere(), g.boundingSphere) as Sphere | null;
     if (!sphere || sphere.radius === 0) return;
 
-    const fov = (this.#camera.fov * Math.PI) / 180;
+    // `camera.fov` is the *vertical* field of view. On a portrait phone the
+    // horizontal one is much narrower, so framing on fov alone lets the model
+    // run off the sides; fit to whichever axis is tighter.
+    const vFov = (this.#camera.fov * Math.PI) / 180;
+    const hFov = 2 * Math.atan(Math.tan(vFov / 2) * this.#camera.aspect);
+    const fov = Math.min(vFov, hFov);
     const distance = (sphere.radius / Math.sin(fov / 2)) * 1.25;
     const direction = new Vector3(0.6, -0.9, 0.55).normalize();
 
@@ -128,6 +144,7 @@ export class Viewer {
     this.#camera.far = distance * 100;
     this.#camera.updateProjectionMatrix();
     this.#controls.update();
+    this.#dirty = true;
   }
 
   /** Current camera placement, as plain numbers. Handy from the console. */
@@ -143,5 +160,6 @@ export class Viewer {
     this.#mesh.geometry.dispose();
     (this.#mesh.material as MeshStandardMaterial).dispose();
     this.#mesh = null;
+    this.#dirty = true;
   }
 }
