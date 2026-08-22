@@ -1,0 +1,27 @@
+{
+  "name": "scad-view",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browse and view server-hosted OpenSCAD models in the browser, with live reload on file change.",
+  "bin": { "scad-view": "server/index.mjs" },
+  "scripts": {
+    "setup": "node scripts/fetch-wasm.mjs",
+    "dev": "node scripts/dev.mjs",
+    "dev:server": "node server/index.mjs",
+    "dev:web": "vite",
+    "build": "vite build",
+    "start": "node server/index.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "chokidar": "^5.0.0",
+    "express": "^5.1.0",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@types/three": "^0.185.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.2.2"
+  }
+}

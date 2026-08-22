@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>scad-view</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='15'>&#129513;</text></svg>" />
+  </head>
+  <body>
+    <div id="app">
+      <aside id="sidebar">
+        <header class="pane-head">
+          <span class="title">Models</span>
+          <span id="root-name" class="muted"></span>
+        </header>
+        <nav id="tree" class="tree"></nav>
+      </aside>
+      <main id="main">
+        <header id="toolbar">
+          <span id="model-name" class="model-name">No model selected</span>
+          <span id="quality-badge" class="badge" hidden></span>
+          <span id="stats" class="muted"></span>
+          <span class="spacer"></span>
+          <span id="watch-dot" class="watch-dot" title="watching for changes"></span>
+          <button id="full-render" type="button" disabled>Full render</button>
+        </header>
+        <div id="viewport">
+          <canvas id="canvas"></canvas>
+          <div id="overlay" class="overlay" hidden></div>
+        </div>
+        <section id="logpane">
+          <header class="pane-head">
+            <span class="title">Log</span>
+            <span id="log-status" class="muted"></span>
+            <span class="spacer"></span>
+            <button id="log-toggle" type="button" class="linkish">hide</button>
+          </header>
+          <pre id="log"></pre>
+        </section>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
