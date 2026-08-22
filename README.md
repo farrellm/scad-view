@@ -30,6 +30,44 @@ npm run dev ~/models   # API on :8173, Vite on :5273
 
 Options: `--port N`, `--host H` (default `127.0.0.1`).
 
+## Reaching it from another device (Tailscale)
+
+Both servers bind `127.0.0.1`. Rather than widening that, put `tailscale serve`
+in front: nothing new listens on your LAN, the tailnet-only restriction is
+enforced by tailscaled, and you get HTTPS with no certificate work.
+
+```sh
+npm run build && npm start ~/models      # still 127.0.0.1:8173
+tailscale serve --bg --https=443 8173
+# -> https://<machine>.<tailnet>.ts.net
+
+tailscale serve --https=443 off          # stop sharing
+```
+
+For the dev server, share Vite's port; the API stays private because Vite
+proxies `/api` to it over loopback:
+
+```sh
+npm run dev ~/models
+tailscale serve --bg --https=5273 5273
+# -> https://<machine>.<tailnet>.ts.net:5273
+```
+
+Two things this depends on, both already configured in `vite.config.ts`:
+
+- **`server.host: '127.0.0.1'`.** Vite's default `localhost` can resolve to
+  `[::1]` only, and `tailscale serve <port>` dials `127.0.0.1` — mismatch shows
+  up as a connection-refused proxy error, not a Vite error.
+- **`server.allowedHosts: ['.ts.net']`.** Requests arrive with the MagicDNS
+  hostname, which Vite's DNS-rebinding guard otherwise rejects with a bare
+  `Blocked request. This host is not allowed.`
+
+Keep the external HTTPS port equal to Vite's own port. Vite tells the browser to
+open its HMR socket on `server.port`, so a mismatched external port breaks hot
+reload (model live-reload still works — that runs over the app's own SSE stream,
+not HMR). If Tailscale refuses the port, use one of `443`, `8443`, `10000` and
+set `server.hmr.clientPort` to match.
+
 ## Using it
 
 - Pick a `.scad` file from the sidebar. It renders immediately at **preview**
