@@ -1,5 +1,5 @@
 /// <reference lib="webworker" />
-import { renderArgs, type WorkerMessage, type RenderRequest } from './protocol';
+import { OUTPUT_PATH, renderArgs, type WorkerMessage, type RenderRequest } from './protocol';
 
 declare const self: DedicatedWorkerGlobalScope;
 
@@ -34,7 +34,7 @@ function ensureDir(fs: OpenSCADModule['FS'], dir: string) {
 }
 
 self.addEventListener('message', async (e: MessageEvent<RenderRequest>) => {
-  const { entry, files, assets, preview } = e.data;
+  const { entry, files, assets, preview, format } = e.data;
   const started = performance.now();
   const elapsed = () => performance.now() - started;
 
@@ -64,7 +64,7 @@ self.addEventListener('message', async (e: MessageEvent<RenderRequest>) => {
 
     let exitCode: number;
     try {
-      exitCode = instance.callMain(renderArgs(entry, preview));
+      exitCode = instance.callMain(renderArgs(entry, preview, format));
     } catch (err) {
       // Emscripten can throw a raw C++ exception pointer.
       const detail = typeof err === 'number' && instance.formatException
@@ -73,14 +73,15 @@ self.addEventListener('message', async (e: MessageEvent<RenderRequest>) => {
       throw new Error(`OpenSCAD invocation failed: ${detail}`);
     }
 
-    let off: ArrayBuffer | null = null;
-    if (instance.FS.analyzePath('/out.off').exists) {
-      const bytes = instance.FS.readFile('/out.off');
+    let output: ArrayBuffer | null = null;
+    const outPath = OUTPUT_PATH[format];
+    if (instance.FS.analyzePath(outPath).exists) {
+      const bytes = instance.FS.readFile(outPath);
       // Copy out of the wasm heap so the buffer can be transferred.
-      off = bytes.slice().buffer as ArrayBuffer;
+      output = bytes.slice().buffer as ArrayBuffer;
     }
 
-    post({ kind: 'done', exitCode, off, elapsedMs: elapsed() }, off ? [off] : []);
+    post({ kind: 'done', exitCode, output, elapsedMs: elapsed() }, output ? [output] : []);
   } catch (err) {
     post({ kind: 'error', message: err instanceof Error ? err.message : String(err), elapsedMs: elapsed() });
   }

@@ -221,7 +221,7 @@ button.linkish:active { color: var(--text); background: none; }
   font-size: 15px;
 }
 
-#fit-view { display: inline-flex; }
+#fit-view, #download-stl { display: inline-flex; }
 
 #viewport { position: relative; min-height: 0; }
 #canvas { display: block; width: 100%; height: 100%; touch-action: none; }

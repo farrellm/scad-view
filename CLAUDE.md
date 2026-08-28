@@ -79,6 +79,13 @@ Load-bearing decisions, each of which will look arbitrary until it bites you:
   makes the live-update workflow unusable.
 - **Auto-render is always preview quality**; a full render never runs unattended. This is a
   deliberate product decision, not an oversight.
+- **STL export re-renders at full quality** rather than converting the mesh on screen with
+  three's `STLExporter`. Because of the rule above, whatever is displayed is usually a
+  preview mesh, and writing that into a `.stl` hands back a coarse model under a
+  print-ready name. The export shares the single worker slot with viewing renders (so it
+  supersedes one in flight) and never touches the viewport. `OutputFormat` in
+  `web/src/render/protocol.ts` is the seam: `-o` path and `--export-format` both derive
+  from it.
 
 ## OpenSCAD gotchas
 
@@ -115,4 +122,4 @@ the version gap before assuming a bug in this code.
 ## Scope boundaries
 
 3D only; no `$OPENSCADPATH` / system-library resolution (`include <BOSL2/std.scad>` resolves
-only under the served root); no customizer UI, mesh export, or in-browser editing.
+only under the served root); no customizer UI or in-browser editing.

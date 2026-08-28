@@ -14,6 +14,7 @@ const modelName = $('model-name');
 const qualityBadge = $('quality-badge');
 const statsEl = $('stats');
 const fullRenderBtn = $<HTMLButtonElement>('full-render');
+const downloadBtn = $<HTMLButtonElement>('download-stl');
 const fitBtn = $<HTMLButtonElement>('fit-view');
 const watchDot = $('watch-dot');
 const logToggle = $<HTMLButtonElement>('log-toggle');
@@ -30,6 +31,14 @@ const log = new LogPane($('log'), $('log-status'));
 const tree = new FileTree($('tree'), (path) => void openModel(path));
 
 type Quality = 'preview' | 'full';
+/** What the single worker slot is currently doing. 'stl' renders to a file, not the viewport. */
+type Job = Quality | 'stl';
+
+const BUSY_LABEL: Record<Job, string> = {
+  preview: 'rendering…',
+  full: 'full render…',
+  stl: 'exporting STL…',
+};
 
 /**
  * OpenSCAD exits non-zero and writes nothing for several perfectly ordinary
@@ -76,12 +85,12 @@ async function runRender(quality: Quality, frame: boolean) {
 
   try {
     const result = await renderer.render(
-      { entry: bundle.entry, files: bundle.files, assets: bundle.assets, preview: quality === 'preview' },
+      { entry: bundle.entry, files: bundle.files, assets: bundle.assets, preview: quality === 'preview', format: 'off' },
       { onLog: (line) => { logLines.push(line.text); log.append(line); } },
     );
     if (seq !== state.renderSeq) return; // superseded
 
-    const { geometry, triangles, hasColor } = parseOff(result.offText);
+    const { geometry, triangles, hasColor } = parseOff(new TextDecoder().decode(result.data));
     viewer.setGeometry(geometry, hasColor, frame);
 
     state.quality = quality;
@@ -112,14 +121,69 @@ async function runRender(quality: Quality, frame: boolean) {
   }
 }
 
-function setBusy(busy: boolean, quality: Quality) {
+/**
+ * Export the model as binary STL.
+ *
+ * This deliberately re-renders at full quality instead of converting the mesh
+ * already on screen: auto-render is always preview quality, so exporting the
+ * viewport would routinely write a coarse $fa=12/$fs=2 mesh into a file that
+ * looks print-ready. The bytes come straight from OpenSCAD's own STL writer.
+ */
+async function downloadStl() {
+  const bundle = state.bundle;
+  if (!bundle) return;
+
+  const name = bundle.entry.slice(bundle.entry.lastIndexOf('/') + 1).replace(/\.scad$/i, '') + '.stl';
+  // Shares the render sequence with runRender: one worker slot, so starting an
+  // export supersedes a render in flight and vice versa.
+  const seq = ++state.renderSeq;
+  const logLines: string[] = [];
+  setBusy(true, 'stl');
+  log.clear();
+  log.note(`$ openscad ${bundle.entry} -o ${name}  (full render)`);
+  for (const m of bundle.missing) log.note(`! missing include: ${m.path} (${m.reason})`);
+
+  try {
+    const result = await renderer.render(
+      { entry: bundle.entry, files: bundle.files, assets: bundle.assets, preview: false, format: 'binstl' },
+      { onLog: (line) => { logLines.push(line.text); log.append(line); } },
+    );
+    if (seq !== state.renderSeq) return; // superseded
+
+    saveBlob(new Blob([result.data], { type: 'model/stl' }), name);
+    const kb = Math.max(1, Math.round(result.data.byteLength / 1024));
+    log.setStatus(`exported ${name} — ${kb.toLocaleString()} KB in ${Math.round(result.elapsedMs)} ms`, 'ok');
+  } catch (err) {
+    if (seq !== state.renderSeq) return;
+    const raw = err instanceof Error ? err.message : String(err);
+    // No overlay: the export never touched the viewport, so leave the mesh alone.
+    log.note(explainFailure(raw, logLines));
+    log.setStatus('export failed', 'err');
+  } finally {
+    if (seq === state.renderSeq) setBusy(false, 'stl');
+  }
+}
+
+function saveBlob(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  // Revoking synchronously can race the download on some browsers.
+  setTimeout(() => URL.revokeObjectURL(url), 60_000);
+}
+
+/** `job` is what the badge announces while a worker is running. */
+function setBusy(busy: boolean, job: Job) {
   fullRenderBtn.disabled = busy || !state.bundle;
+  downloadBtn.disabled = busy || !state.bundle;
   fitBtn.disabled = !state.bundle;
   qualityBadge.hidden = !state.bundle;
   if (busy) {
-    qualityBadge.textContent = quality === 'preview' ? 'rendering…' : 'full render…';
+    qualityBadge.textContent = BUSY_LABEL[job];
     qualityBadge.className = 'badge busy';
-    log.setStatus('rendering…', 'busy');
+    log.setStatus(job === 'stl' ? 'exporting…' : 'rendering…', 'busy');
   } else {
     updateBadge();
   }
@@ -193,6 +257,7 @@ async function reloadAndRender() {
 // --- wiring ------------------------------------------------------------------
 
 fullRenderBtn.onclick = () => void runRender('full', false);
+downloadBtn.onclick = () => void downloadStl();
 
 // Touch has no keyboard and no scroll wheel, so it is easy to orbit the model
 // off-screen with no way back.
