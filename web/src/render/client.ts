@@ -1,7 +1,8 @@
 import type { LogLine, RenderRequest, WorkerMessage } from './protocol';
 
 export interface RenderResult {
-  offText: string;
+  /** Raw bytes of whatever format was requested; binary STL must not be decoded as text. */
+  data: ArrayBuffer;
   exitCode: number;
   elapsedMs: number;
 }
@@ -56,14 +57,10 @@ export class Renderer {
         finish();
         if (msg.kind === 'error') {
           reject(new Error(msg.message));
-        } else if (!msg.off) {
+        } else if (!msg.output) {
           reject(new Error(`OpenSCAD produced no output (exit code ${msg.exitCode})`));
         } else {
-          resolve({
-            offText: new TextDecoder().decode(msg.off),
-            exitCode: msg.exitCode,
-            elapsedMs: msg.elapsedMs,
-          });
+          resolve({ data: msg.output, exitCode: msg.exitCode, elapsedMs: msg.elapsedMs });
         }
       };
 
